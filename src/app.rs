@@ -86,8 +86,6 @@ impl TemplateApp {
                 accel_visible: [true, true, true],
                 temperature_visible: true,
                 pressure_visible: true,
-                legend: Legend::default(),
-                aspect: 0.0,
                 acceleration_cutoff: [0.0, 0.0, 0.0],
                 acceleration_offset: [0.0, 0.0, -9.81]
             },

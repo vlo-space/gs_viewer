@@ -9,10 +9,6 @@ pub struct PlotTabState {
     pub temperature_visible: bool,
     pub pressure_visible: bool,
 
-    pub aspect: f32,
-
-    pub legend: Legend,
-
     pub acceleration_cutoff: [f64; 3],
     pub acceleration_offset: [f64; 3],
 }
