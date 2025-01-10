@@ -53,27 +53,6 @@ impl TemplateApp {
         //     return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
         // }
 
-        let mut vec: Vec<SensedData> = vec![];
-        let mut uptime = 5;
-        for _ in 0..=1000 {
-            vec.push(SensedData {
-                uptime,
-                temperature: 16.26,
-                pressure: 10000.0,
-                acceleration: [
-                    rand::thread_rng().gen_range(-0.5..0.5),
-                    rand::thread_rng().gen_range(-0.5..0.5),
-                    rand::thread_rng().gen_range(-0.5..0.5)
-                ],
-                acceleration_confidence: ReadConfidence::Medium,
-                gps_time: 0,
-                gps_date: 0,
-                gps_position: [0.0, 0.0],
-                gps_altitude: 1000.0,
-            });
-            uptime += 1;
-        }
-
         Self {
             map_tiles: HttpTiles::new(OpenStreetMap, cc.egui_ctx.clone()),
             map_memory: MapMemory::default(),
