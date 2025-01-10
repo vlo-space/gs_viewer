@@ -92,7 +92,7 @@ impl eframe::App for TemplateApp {
                                 .expect("path should always point to a file")
                                 .to_str().expect("filename should be valid unicode")
                                 .to_owned();
-                            let text = fs::read_to_string(path).expect("a");
+                            let text = fs::read_to_string(path).expect("file should be readable");
 
                             self.data_source = DataSource::File { 
                                 name,
