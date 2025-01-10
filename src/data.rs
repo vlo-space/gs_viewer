@@ -24,6 +24,7 @@ impl TryFrom<u8> for ReadConfidence {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct SensedData {
+    pub index: u32,
     pub uptime: u32,
 
     pub temperature: f32,
@@ -67,7 +68,7 @@ pub fn parse_log_line(text: &str) -> Result<SensedData, LogReadError> {
             .map_err(|_| LogReadError::ParseError { msg: "Invalid confidence value".to_owned(), value: None })
     }
 
-    let _index: u32          = try_parse_next(&mut iterator)?;
+    let index: u32          = try_parse_next(&mut iterator)?;
     let uptime: u32         = try_parse_next(&mut iterator)?;
     let _micros: u32         = try_parse_next(&mut iterator)?;
     let temperature: f32    = try_parse_next(&mut iterator)?;
@@ -93,6 +94,7 @@ pub fn parse_log_line(text: &str) -> Result<SensedData, LogReadError> {
     let gps_altitude: f64   = try_parse_next(&mut iterator)?;
 
     return Ok(SensedData {
+        index,
         uptime,
         temperature,
         pressure,
@@ -114,6 +116,7 @@ mod tests {
         assert_eq!(
             parse_log_line("0\t1\t1\t2\t3\t4\t4\t4\t0\t6\t6\t6\t0\t8\t9\t10\t10\t11"),
             Ok(SensedData {
+                index: 0,
                 uptime: 1,
                 temperature: 2.0,
                 pressure: 3.0,

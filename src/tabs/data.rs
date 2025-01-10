@@ -21,6 +21,21 @@ pub fn data_tab(ui: &mut Ui, state: &mut DataTabState, data: &Vec<SensedData>) {
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
         ui.checkbox(&mut state.stick_to_bottom, "Stick to bottom");
+
+        ui.separator();
+
+        ui.heading("Stats");
+        if data.is_empty() {
+            ui.label("No messages recieved");
+        } else {
+            let recieved = data.len() as u32;
+            let total = data.last().unwrap().index - data.first().unwrap().index + 1;
+
+            ui.label(format!("Recieved: {}", recieved));
+            ui.label(format!("Total: {}", total));
+            ui.label(format!("Lost: {}, {}%", total - recieved, (total - recieved) as f32 / (total as f32)));
+        }
+        
     });
     
     egui::CentralPanel::default().show_inside(ui, |ui| {
