@@ -1,10 +1,8 @@
 
-use std::{fs, io::{BufRead, BufReader}, sync::{atomic::AtomicBool, Arc, Mutex}, thread, time::Duration, vec};
-use egui_plot::Legend;
-use rand::Rng;
+use std::{fs, io::{BufRead, BufReader}, sync::{atomic::AtomicBool, Arc, Mutex}, thread, time::Duration};
 use walkers::{sources::OpenStreetMap, HttpTiles, MapMemory};
 
-use crate::{data::{parse_log_line, ReadConfidence, SensedData}, tabs::{data::{data_tab, DataTabState}, map::map_tab, plot::{plot_tab, PlotTabState}}};
+use crate::{data::{parse_log_line, SensedData}, tabs::{data::{data_tab, DataTabState}, map::map_tab, plot::{plot_tab, PlotTabState}}};
 
 pub struct TemplateApp {
     map_tiles: HttpTiles,
