@@ -14,6 +14,7 @@ pub struct PlotTabState {
 }
 
 pub fn plot_tab(ui: &mut Ui, state: &mut PlotTabState, data: &Vec<SensedData>) {
+
     egui::SidePanel::left("plot_side_panel").show_inside(ui, |ui| {
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
@@ -40,6 +41,10 @@ pub fn plot_tab(ui: &mut Ui, state: &mut PlotTabState, data: &Vec<SensedData>) {
             ui.add(egui::DragValue::new(&mut state.acceleration_offset[1]).speed(0.01));
             ui.add(egui::DragValue::new(&mut state.acceleration_offset[2]).speed(0.01));
         });
+
+        ui.separator();
+
+        ui.label("Double-click the plot to reset view");
     });
 
     let get_acceleration = |data: &SensedData, coord: usize| {
