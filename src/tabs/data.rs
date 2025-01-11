@@ -1,5 +1,5 @@
 
-use egui::Ui;
+use egui::{Ui, Vec2};
 use egui_extras::{Column, TableBuilder};
 
 use crate::data::SensedData;
@@ -15,7 +15,6 @@ pub fn data_tab(ui: &mut Ui, state: &mut DataTabState, data: &Vec<SensedData>) {
         .max(ui.spacing().interact_size.y);
 
     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-
 
     egui::SidePanel::left("data_side_panel").show_inside(ui, |ui| {
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
@@ -34,6 +33,37 @@ pub fn data_tab(ui: &mut Ui, state: &mut DataTabState, data: &Vec<SensedData>) {
             ui.label(format!("Recieved: {}", recieved));
             ui.label(format!("Total: {}", total));
             ui.label(format!("Lost: {}, {}%", total - recieved, (total - recieved) as f32 / (total as f32)));
+
+            ui.allocate_space(Vec2 { x: 0.0, y: 10.0 });
+
+            let mut max_time = 0;
+            let mut min_time = 0;
+            let mut sum = 0;
+            let mut count = 0;
+
+            let mut prev_uptime = 0;
+            for row in data {
+                if prev_uptime != 0 {
+                    let delta = row.uptime - prev_uptime;
+
+                    if delta > max_time {
+                        max_time = delta;
+                    }
+
+                    if delta < min_time {
+                        min_time = delta;
+                    }
+
+                    sum += delta;
+                    count += 1;
+                }
+
+                prev_uptime = row.uptime;
+            }
+
+            ui.label(format!("Avg time between messages: {}", sum as f32 / count as f32));
+            ui.label(format!("Max time between messages: {}", max_time));
+            ui.label(format!("Min time between messages: {}", min_time));
         }
         
     });
