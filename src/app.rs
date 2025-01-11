@@ -13,6 +13,8 @@ pub struct TemplateApp {
 
     plot_state: PlotTabState,
     data_state: DataTabState,
+
+    auto_repaint: bool
 }
 
 #[derive(Debug, Clone)]
@@ -68,7 +70,8 @@ impl TemplateApp {
             },
             data_state: DataTabState {
                 stick_to_bottom: true
-            }
+            },
+            auto_repaint: false
         }
     }
 }
@@ -79,6 +82,10 @@ impl eframe::App for TemplateApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+
+        if self.auto_repaint {
+            ctx.request_repaint();
+        }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
@@ -181,6 +188,7 @@ impl eframe::App for TemplateApp {
                 });
 
                 ui.menu_button("View", |ui| {
+                    ui.checkbox(&mut self.auto_repaint, "Repaint automatically");
                     egui::global_theme_preference_buttons(ui); 
                 });
 
