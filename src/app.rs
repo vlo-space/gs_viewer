@@ -60,14 +60,7 @@ impl TemplateApp {
 
             data_source: DataSource::None,
 
-            plot_state: PlotTabState {
-                accel_sum_visible: true,
-                accel_visible: [true, true, true],
-                temperature_visible: true,
-                pressure_visible: true,
-                acceleration_cutoff: [0.0, 0.0, 0.0],
-                acceleration_offset: [0.0, 0.0, -9.81]
-            },
+            plot_state: PlotTabState::default(),
             data_state: DataTabState {
                 stick_to_bottom: true
             },
