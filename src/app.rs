@@ -146,41 +146,40 @@ impl eframe::App for TemplateApp {
                                     },
                                     _ => name.to_owned()
                                 }).clicked() {
-                                    let mut port = serialport::new(name.to_owned(), 115200)
-                                        .timeout(Duration::from_millis(1000))
-                                        .open()
-                                        .unwrap();
+                                    if let Ok(mut port) = serialport::new(name.to_owned(), 115200)
+                                            .timeout(Duration::from_millis(1000))
+                                            .open() {
+                                        port.set_flow_control(serialport::FlowControl::Hardware).unwrap();
+                                        let mut reader = BufReader::new(port);
 
-                                    port.set_flow_control(serialport::FlowControl::Hardware).unwrap();
-                                    let mut reader = BufReader::new(port);
+                                        let data: Arc<Mutex<Vec<SensedData>>> = Arc::new(Mutex::new(vec![]));
+                                        let canceler: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
 
-                                    let data: Arc<Mutex<Vec<SensedData>>> = Arc::new(Mutex::new(vec![]));
-                                    let canceler: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+                                        self.change_data_source(DataSource::SerialPort {
+                                            port_name: name,
+                                            baud_rate: 115200,
+                                            data: data.clone(),
+                                            cancel_reader: canceler.clone()
+                                        });
 
-                                    self.change_data_source(DataSource::SerialPort {
-                                        port_name: name,
-                                        baud_rate: 115200,
-                                        data: data.clone(),
-                                        cancel_reader: canceler.clone()
-                                    });
+                                        thread::spawn(move || {
+                                            loop {
+                                                let mut string = String::new();
+                                                let _ = reader.read_line(&mut string);
 
-                                    thread::spawn(move || {
-                                        loop {
-                                            let mut string = String::new();
-                                            let _ = reader.read_line(&mut string);
+                                                let sensed = parse_log_line(&string);
+                                                
+                                                if canceler.load(std::sync::atomic::Ordering::Relaxed) {
+                                                    println!("Cancel order detected; ending thread.");
+                                                    return;
+                                                }
 
-                                            let sensed = parse_log_line(&string);
-                                            
-                                            if canceler.load(std::sync::atomic::Ordering::Relaxed) {
-                                                println!("Cancel order detected; ending thread.");
-                                                return;
+                                                if let Ok(sensed) = sensed {
+                                                    data.lock().unwrap().push(sensed);
+                                                }
                                             }
-
-                                            if let Ok(sensed) = sensed {
-                                                data.lock().unwrap().push(sensed);
-                                            }
-                                        }
-                                    });
+                                        });
+                                    }
                                 }
                             }
                         }
