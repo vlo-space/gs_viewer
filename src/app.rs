@@ -1,5 +1,5 @@
 
-use std::{fs, io::{BufRead, BufReader}, sync::{atomic::AtomicBool, Arc, Mutex}, thread, time::Duration};
+use std::{fs, io::{BufRead, BufReader}, sync::{atomic::AtomicBool, Arc, Mutex}, thread, time::{Duration, Instant}};
 use walkers::{sources::OpenStreetMap, HttpTiles, MapMemory};
 
 use crate::{data::{parse_log_line, SensedData}, tabs::{data::{data_tab, DataTabState}, map::map_tab, plot::{plot_tab, PlotTabState}}};
@@ -14,7 +14,9 @@ pub struct TemplateApp {
     plot_state: PlotTabState,
     data_state: DataTabState,
 
-    auto_repaint: bool
+    auto_repaint: bool,
+
+    status_message: Option<StatusMessage>
 }
 
 #[derive(Debug, Clone)]
@@ -38,6 +40,13 @@ enum Tab {
     Data,
     Plot,
     Map
+}
+
+#[derive(Debug, Clone)]
+struct StatusMessage {
+    since: Instant,
+    duration: Duration,
+    text: String
 }
 
 impl TemplateApp {
@@ -64,7 +73,8 @@ impl TemplateApp {
             data_state: DataTabState {
                 stick_to_bottom: true
             },
-            auto_repaint: false
+            auto_repaint: false,
+            status_message: None
         }
     }
 }
@@ -85,22 +95,25 @@ impl eframe::App for TemplateApp {
                 ui.menu_button("File", |ui| {
                     if ui.button("Import log").clicked() {
                         if let Some(path) = rfd::FileDialog::new().pick_file() {
-
                             let name = path.file_name()
                                 .expect("path should always point to a file")
                                 .to_str().expect("filename should be valid unicode")
                                 .to_owned();
-                            let text = fs::read_to_string(path).expect("file should be readable");
 
-                            self.data_source = DataSource::File { 
-                                name,
-                                data: text.split("--- S").last().unwrap()
-                                    .lines()
-                                    .map(|line| parse_log_line(line))
-                                    .filter(|elem| elem.is_ok())
-                                    .map(|elem| elem.unwrap())
-                                    .collect() 
-                            };
+                            match fs::read_to_string(path) {
+                                Err(_) => self.set_short_status("Unable to read file".to_owned()),
+                                Ok(text) => {
+                                    self.data_source = DataSource::File { 
+                                        name,
+                                        data: text.split("--- S").last().unwrap()
+                                            .lines()
+                                            .map(|line| parse_log_line(line))
+                                            .filter(|elem| elem.is_ok())
+                                            .map(|elem| elem.unwrap())
+                                            .collect() 
+                                    };
+                                },
+                            }                            
 
                             ui.close_menu();
 
@@ -139,39 +152,42 @@ impl eframe::App for TemplateApp {
                                     },
                                     _ => name.to_owned()
                                 }).clicked() {
-                                    if let Ok(mut port) = serialport::new(name.to_owned(), 115200)
+                                    match serialport::new(name.to_owned(), 115200)
                                             .timeout(Duration::from_millis(1000))
                                             .open() {
-                                        port.set_flow_control(serialport::FlowControl::Hardware).unwrap();
-                                        let mut reader = BufReader::new(port);
+                                        Err(e) => self.set_short_status(e.description),
+                                        Ok(mut port) => {
+                                            port.set_flow_control(serialport::FlowControl::Hardware).unwrap();
+                                            let mut reader = BufReader::new(port);
 
-                                        let data: Arc<Mutex<Vec<SensedData>>> = Arc::new(Mutex::new(vec![]));
-                                        let canceler: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+                                            let data: Arc<Mutex<Vec<SensedData>>> = Arc::new(Mutex::new(vec![]));
+                                            let canceler: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
 
-                                        self.change_data_source(DataSource::SerialPort {
-                                            port_name: name,
-                                            baud_rate: 115200,
-                                            data: data.clone(),
-                                            cancel_reader: canceler.clone()
-                                        });
+                                            self.change_data_source(DataSource::SerialPort {
+                                                port_name: name.to_owned(),
+                                                baud_rate: 115200,
+                                                data: data.clone(),
+                                                cancel_reader: canceler.clone()
+                                            });
 
-                                        thread::spawn(move || {
-                                            loop {
-                                                let mut string = String::new();
-                                                let _ = reader.read_line(&mut string);
+                                            thread::spawn(move || {
+                                                loop {
+                                                    let mut string = String::new();
+                                                    let _ = reader.read_line(&mut string);
 
-                                                let sensed = parse_log_line(&string);
-                                                
-                                                if canceler.load(std::sync::atomic::Ordering::Relaxed) {
-                                                    println!("Cancel order detected; ending thread.");
-                                                    return;
+                                                    let sensed = parse_log_line(&string);
+                                                    
+                                                    if canceler.load(std::sync::atomic::Ordering::Relaxed) {
+                                                        println!("Cancel order detected; ending thread.");
+                                                        return;
+                                                    }
+
+                                                    if let Ok(sensed) = sensed {
+                                                        data.lock().unwrap().push(sensed);
+                                                    }
                                                 }
-
-                                                if let Ok(sensed) = sensed {
-                                                    data.lock().unwrap().push(sensed);
-                                                }
-                                            }
-                                        });
+                                            });
+                                        },
                                     }
                                 }
                             }
@@ -195,13 +211,28 @@ impl eframe::App for TemplateApp {
         });
 
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
-            ui.label(match &self.data_source {
-                DataSource::File { name, data } 
-                    => format!("Displaying {} lines from {}", data.len(), name),
-                DataSource::SerialPort { port_name, baud_rate, .. } 
-                    => format!("Connected to serial {} at {} baud", port_name, baud_rate ),
-                DataSource::None 
-                    => "No data.".to_owned(),
+            ui.horizontal(|ui| {
+                ui.label(match &self.data_source {
+                    DataSource::File { name, data } 
+                        => format!("Displaying {} lines from {}", data.len(), name),
+                    DataSource::SerialPort { port_name, baud_rate, .. } 
+                        => format!("Connected to serial {} at {} baud", port_name, baud_rate ),
+                    DataSource::None 
+                        => "No data.".to_owned(),
+                });
+    
+                if let Some(status) = self.status_message.clone() {
+                    if status.since.elapsed() > status.duration {
+                        self.status_message = None;
+                    }
+                    
+                    ui.separator();
+                    ui.label("ℹ");
+                    ui.label(status.text);
+                    if ui.button("X").clicked() {
+                        self.status_message = None;
+                    }
+                }
             });
         });
 
@@ -260,5 +291,15 @@ impl TemplateApp {
         }
 
         self.data_source = new;
+    }
+
+    fn set_status(&mut self, text: String, duration: Duration) {
+        self.status_message = Some(StatusMessage { 
+            since: Instant::now(), duration, text 
+        });
+    }
+
+    fn set_short_status(&mut self, text: String) {
+        self.set_status(text, Duration::from_secs(6));
     }
 }
