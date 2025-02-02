@@ -1,5 +1,3 @@
-use std::ops::{Add, Div, Mul};
-
 use egui::{emath::Numeric, CollapsingHeader, Color32, Slider, Ui, WidgetText};
 use egui_plot::{Legend, Line, Plot, PlotPoints};
 
