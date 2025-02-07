@@ -1,4 +1,4 @@
-use egui::{emath::Numeric, CollapsingHeader, Color32, Slider, Ui, WidgetText};
+use egui::{emath::Numeric, CollapsingHeader, Color32, Layout, Slider, Ui, WidgetText};
 use egui_plot::{Legend, Line, Plot, PlotPoints};
 
 use crate::data::SensedData;
@@ -190,8 +190,10 @@ pub fn plot_tab(ui: &mut Ui, state: &mut PlotTabState, data: &Vec<SensedData>) {
 
         ui.checkbox(&mut state.hide_nans, "Do not show missing data as gaps");
 
-        ui.separator();
-        ui.label("Double-click the plot to reset view");
+        ui.with_layout(Layout::bottom_up(egui::Align::Min), |ui| {
+            ui.label("Double-click the plot to reset view");
+            ui.label("Hold right-click and drag to zoom in");
+        });
     });
 
     let line: &dyn Fn(&str, Color32, &LineSettings, &dyn Fn(&SensedData) -> f64) -> Line = &|name, color, settings, processor| {
