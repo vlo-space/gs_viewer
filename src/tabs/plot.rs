@@ -20,6 +20,7 @@ impl Default for LineSettings {
 pub struct PlotTabState {
     acceleration: [LineSettings; 3],
     acceleration_sum: LineSettings,
+    vibration: LineSettings,
     temperature: LineSettings,
     pressure: LineSettings,
 
@@ -39,6 +40,7 @@ impl Default for PlotTabState {
         Self { 
             acceleration: Default::default(), 
             acceleration_sum: Default::default(), 
+            vibration: Default::default(),
             temperature: Default::default(), 
             pressure: Default::default(), 
             hide_nans: true,
@@ -122,6 +124,9 @@ pub fn plot_tab(ui: &mut Ui, state: &mut PlotTabState, data: &Vec<SensedData>) {
                 ui.end_row();
     
                 line_config(ui, "Acceleration Sum", &mut state.acceleration_sum);
+                ui.end_row();
+
+                line_config(ui, "Vibration", &mut state.vibration);
                 ui.end_row();
     
                 line_config(ui, "Temperature", &mut state.temperature);
@@ -222,6 +227,8 @@ pub fn plot_tab(ui: &mut Ui, state: &mut PlotTabState, data: &Vec<SensedData>) {
                 plot_ui.line(line("Acceleration sum", Color32::from_rgb(195, 107, 176), &state.acceleration_sum, &|s| { 
                     (s.acceleration[0].powi(2) + s.acceleration[1].powi(2) + s.acceleration[2].powi(2)).sqrt()
                 }));
+
+                plot_ui.line(line("Vibration", Color32::from_rgb(43, 134, 231), &state.temperature, &|s| { s.vibration.to_f64() }));
 
                 plot_ui.line(line("Temperature", Color32::from_rgb(43, 134, 231), &state.temperature, &|s| { s.temperature.to_f64() }));
                 plot_ui.line(line("Pressure",    Color32::from_rgb(43, 134, 231), &state.pressure, &|s| { s.pressure.to_f64() }));
