@@ -1,18 +1,18 @@
 
 use std::{fs, io::{BufRead, BufReader}, sync::{atomic::AtomicBool, Arc, Mutex}, thread, time::{Duration, Instant}};
-use walkers::{sources::OpenStreetMap, HttpTiles, MapMemory};
+use walkers::{sources::OpenStreetMap, HttpTiles};
 
-use crate::{data::{parse_log_line, SensedData}, tabs::{data::{data_tab, DataTabState}, map::map_tab, plot::{plot_tab, PlotTabState}}};
+use crate::{data::{parse_log_line, SensedData}, tabs::{data::{data_tab, DataTabState}, map::{map_tab, MapTabState}, plot::{plot_tab, PlotTabState}}};
 
 pub struct TemplateApp {
     map_tiles: HttpTiles,
-    map_memory: MapMemory,
 
     current_tab: Tab,
     data_source: DataSource,
 
     plot_state: PlotTabState,
     data_state: DataTabState,
+    map_state: MapTabState,
 
     auto_repaint: bool,
 
@@ -64,7 +64,6 @@ impl TemplateApp {
 
         Self {
             map_tiles: HttpTiles::new(OpenStreetMap, cc.egui_ctx.clone()),
-            map_memory: MapMemory::default(),
             current_tab: Tab::Data,
 
             data_source: DataSource::None,
@@ -73,6 +72,7 @@ impl TemplateApp {
             data_state: DataTabState {
                 stick_to_bottom: true
             },
+            map_state: MapTabState::default(),
             auto_repaint: false,
             status_message: None
         }
@@ -116,7 +116,6 @@ impl eframe::App for TemplateApp {
                             }                            
 
                             ui.close_menu();
-
                         }
                     }
 
@@ -254,7 +253,7 @@ impl eframe::App for TemplateApp {
                         plot_tab(ui, &mut self.plot_state, &data);
                     },
                     Tab::Map => {
-                        map_tab(ui, &data, Some(&mut self.map_tiles), &mut self.map_memory);
+                        map_tab(ui, &mut self.map_state, &data, Some(&mut self.map_tiles));
                     },
                 }
             } else {

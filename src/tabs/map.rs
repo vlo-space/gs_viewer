@@ -1,55 +1,74 @@
-use egui::{Color32, Stroke, Ui};
+use egui::{DragValue, Ui};
 use walkers::{extras::{Place, Places, Style}, Map, MapMemory, Position, Tiles};
 
 use crate::data::SensedData;
 
+#[derive(Default)]
+pub struct MapTabState {
+    pub map_memory: MapMemory
+}
+
 pub fn map_tab<'a,'b>(
     ui: &mut Ui, 
-    _data: &Vec<SensedData>, 
+    state: &mut MapTabState,
+    data: &Vec<SensedData>, 
     tiles: Option<&'b mut dyn Tiles>, 
-    memory: &'a mut MapMemory
 ) {
-    egui::SidePanel::left("map_side_panel").show_inside(ui, |ui| {
-        ui.label("Map settings.");
+    egui::SidePanel::left("map_side_panel").min_width(231.0).show_inside(ui, |ui| {
+        ui.heading("Map settings");
+
+        ui.label("Camera position");
+        let speed = 0.01 / state.map_memory.zoom();
+        if let Some(position) = state.map_memory.detached() {
+            egui::Grid::new("map_position_grid").show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button("Reset").clicked() {
+                        state.map_memory.follow_my_position();
+                    }
+                    ui.add(DragValue::from_get_set(|v: Option<f64>| {
+                        if let Some(v) = v {
+                            state.map_memory.center_at(Position::from_lat_lon(v, position.lon()));
+                        }
+                        position.lat()
+                    }).speed(speed));
+                    ui.add(DragValue::from_get_set(|v: Option<f64>| {
+                        if let Some(v) = v {
+                            state.map_memory.center_at(Position::from_lat_lon(position.lat(), v));
+                        }
+                        position.lon()
+                    }).speed(speed));
+                });
+            });
+        } else {
+            ui.label("Following the probe");
+        }
     });
+
+    // egui::TopBottomPanel::bottom("map_bottom_panel").resizable(false).show_inside(ui, |ui| {
+    //     ui.spacing_mut().slider_width = ui.available_width();
+    //     ui.add(Slider::new(&mut state.index_slider_value, 0..=data.len()));
+    // });
+
+    let current_position = data.last().map_or(None, |s| Some(Position::from_lat_lon(s.gps_position[0], s.gps_position[1])));
 
     egui::CentralPanel::default().show_inside(ui, |ui| {
         ui.add(Map::new(
             tiles,
-            memory,
-            Position::from_lon_lat(19.51713, 50.34858)
-        ).with_plugin(
-            {
-                let mut points: Vec<Place> = vec![];
-    
-                for i in 0..=16 {
-                    let alpha = ((32.0 - i as f64) / 32.0 * 20.0) as u8 + 1;
-                    let color = ((32.0 - i as f64) / 32.0 * 128.0) as u8;
-                    points.push(Place {
-                        position: Position::from_lon_lat(19.51720 - (i as f64) * 0.0004, 50.34859 - (i as f64) * 0.0004),
-                        label: format!("{i}").to_owned(),
-                        symbol: ' ',
-                        style: Style { 
-                            label_font: Style::default().label_font, 
-                            label_color: Color32::TRANSPARENT, 
-                            label_background: Color32::TRANSPARENT, 
-                            symbol_font: Style::default().symbol_font, 
-                            symbol_color: Color32::TRANSPARENT,
-                            symbol_background: Color32::from_rgba_unmultiplied(color, color, color, alpha),
-                            symbol_stroke: Stroke { width: 2.0, color: Color32::from_rgba_unmultiplied(50, 50, 50, 25) }
-                        }
-                    });
-                }
-    
+            &mut state.map_memory,
+            current_position.unwrap_or(Position::from_lat_lon(0.0, 0.0))
+        ).with_plugin({
+            let mut points: Vec<Place> = vec![];
+
+            if let Some(position) = current_position {
                 points.push(Place {
-                    position: Position::from_lon_lat(19.51713, 50.34858),
+                    position,
                     label: "Latest location".to_owned(),
                     symbol: ' ',
                     style: Style::default()
                 });
-    
-                Places::new(points)
             }
-        ))
+
+            Places::new(points)
+        }));
     }); 
 }
