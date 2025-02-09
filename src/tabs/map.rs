@@ -1,4 +1,4 @@
-use egui::{DragValue, Ui};
+use egui::{DragValue, Layout, Ui};
 use walkers::{extras::{Place, Places, Style}, Map, MapMemory, Position, Tiles};
 
 use crate::data::SensedData;
@@ -42,6 +42,10 @@ pub fn map_tab<'a,'b>(
         } else {
             ui.label("Following the probe");
         }
+
+        ui.with_layout(Layout::bottom_up(egui::Align::Min), |ui| {
+            ui.label("Double-click to reset camera position");
+        });
     });
 
     // egui::TopBottomPanel::bottom("map_bottom_panel").resizable(false).show_inside(ui, |ui| {
@@ -52,7 +56,7 @@ pub fn map_tab<'a,'b>(
     let current_position = data.last().map_or(None, |s| Some(Position::from_lat_lon(s.gps_position[0], s.gps_position[1])));
 
     egui::CentralPanel::default().show_inside(ui, |ui| {
-        ui.add(Map::new(
+        let map_response = ui.add(Map::new(
             tiles,
             &mut state.map_memory,
             current_position.unwrap_or(Position::from_lat_lon(0.0, 0.0))
@@ -70,5 +74,9 @@ pub fn map_tab<'a,'b>(
 
             Places::new(points)
         }));
+
+        if map_response.double_clicked() {
+            state.map_memory.follow_my_position();
+        }
     }); 
 }
