@@ -1,21 +1,37 @@
-use egui::{DragValue, Layout, Ui};
-use walkers::{extras::{Place, Places, Style}, Map, MapMemory, Position, Tiles};
+use egui::{Context, DragValue, Layout, Ui};
+use walkers::{extras::{Place, Places, Style}, sources, HttpTiles, Map, MapMemory, Position};
 
 use crate::data::SensedData;
 
-#[derive(Default)]
 pub struct MapTabState {
-    pub map_memory: MapMemory
+    map_memory: MapMemory,
+
+    geo_view: bool,
+
+    osm_tiles: HttpTiles,
+    geo_tiles: HttpTiles,
+}
+
+impl MapTabState {
+    pub fn new(egui_ctx: &Context) -> Self {
+        MapTabState {
+            map_memory: MapMemory::default(),
+            geo_view: false,
+            osm_tiles: HttpTiles::new(sources::OpenStreetMap, egui_ctx.clone()),
+            geo_tiles: HttpTiles::new(sources::Geoportal, egui_ctx.clone())
+        }
+    }
 }
 
 pub fn map_tab<'a,'b>(
     ui: &mut Ui, 
     state: &mut MapTabState,
-    data: &Vec<SensedData>, 
-    tiles: Option<&'b mut dyn Tiles>, 
+    data: &Vec<SensedData>
 ) {
     egui::SidePanel::left("map_side_panel").min_width(231.0).show_inside(ui, |ui| {
         ui.heading("Map settings");
+
+        ui.checkbox(&mut state.geo_view, "Satellite view");
 
         ui.label("Camera position");
         let speed = 0.01 / state.map_memory.zoom();
@@ -57,7 +73,7 @@ pub fn map_tab<'a,'b>(
 
     egui::CentralPanel::default().show_inside(ui, |ui| {
         let map_response = ui.add(Map::new(
-            tiles,
+            Some(if state.geo_view {&mut state.geo_tiles} else {&mut state.osm_tiles}),
             &mut state.map_memory,
             current_position.unwrap_or(Position::from_lat_lon(0.0, 0.0))
         ).with_plugin({
