@@ -1,4 +1,4 @@
-use egui::{Context, DragValue, Layout, Ui};
+use egui::{Context, DragValue, Layout, RichText, Ui};
 use walkers::{extras::{Place, Places, Style}, sources, HttpTiles, Map, MapMemory, Position};
 
 use crate::data::SensedData;
@@ -10,7 +10,15 @@ pub struct MapTabState {
 
     osm_tiles: HttpTiles,
     geo_tiles: HttpTiles,
+
+    ground_station: GroundStationPosition
 }
+#[derive(Default)]
+struct GroundStationPosition {
+    latitude: f64,
+    longitude: f64,
+    altitude: f64,
+ }
 
 impl MapTabState {
     pub fn new(egui_ctx: &Context) -> Self {
@@ -18,7 +26,8 @@ impl MapTabState {
             map_memory: MapMemory::default(),
             geo_view: false,
             osm_tiles: HttpTiles::new(sources::OpenStreetMap, egui_ctx.clone()),
-            geo_tiles: HttpTiles::new(sources::Geoportal, egui_ctx.clone())
+            geo_tiles: HttpTiles::new(sources::Geoportal, egui_ctx.clone()),
+            ground_station: GroundStationPosition::default()
         }
     }
 }
@@ -59,6 +68,32 @@ pub fn map_tab<'a,'b>(
             ui.label("Following the probe");
         }
 
+        ui.add_space(32.0);
+        
+        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui|{
+            ui.add_space(16.0);
+            ui.heading("Azimuth");
+
+            ui.label(RichText::new( if let Some(last) = data.last() {
+                format!("{}", calculate_azimuth(&[state.ground_station.latitude, state.ground_station.longitude], &last.gps_position ))
+            }
+            else {
+                "-".to_string()
+            }).size(40.0));
+            ui.add_space(16.0);
+        });
+        
+        ui.label("Ground station position");
+       
+        ui.horizontal(|ui|{
+            ui.label("Lat: ");
+            ui.add(egui::DragValue::new(&mut state.ground_station.latitude).speed(0.1).range(-90.0..=90.0));
+            ui.label("Lon: ");
+            ui.add(egui::DragValue::new(&mut state.ground_station.longitude).speed(0.1).range(-180.0..=180.0));
+            ui.label("Alt: ");
+            ui.add(egui::DragValue::new(&mut state.ground_station.altitude).speed(0.1).range(0.0..=f64::MAX));
+        });
+    
         ui.with_layout(Layout::bottom_up(egui::Align::Min), |ui| {
             ui.label("Double-click to reset camera position");
         });
@@ -94,5 +129,13 @@ pub fn map_tab<'a,'b>(
         if map_response.double_clicked() {
             state.map_memory.follow_my_position();
         }
-    }); 
+    });     
+}
+
+pub fn calculate_azimuth(gs_cords: &[f64; 2], probe_cords: &[f64; 2]) -> f64{
+    let lon_diff = (probe_cords[1] - gs_cords[1]).to_radians();
+    let intial_point: [f64;2] = [gs_cords[0].to_radians(), gs_cords[1].to_radians()];
+    let end_point: [f64;2] = [probe_cords[0].to_radians(), probe_cords[1].to_radians()];
+
+    (lon_diff.sin() * end_point[0].cos()).atan2(intial_point[0].cos() * end_point[0].sin() - intial_point[0].sin() * end_point[0].cos() * lon_diff.cos()).to_degrees()
 }

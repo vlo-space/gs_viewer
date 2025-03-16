@@ -72,7 +72,7 @@ pub fn parse_log_line(text: &str) -> Result<SensedData, LogReadError> {
 
     let index: u32          = try_parse_next(&mut iterator)?;
     let uptime: u32         = try_parse_next(&mut iterator)?;
-    let _micros: u32         = try_parse_next(&mut iterator)?;
+    let _micros: u32        = try_parse_next(&mut iterator)?;
     let temperature: f32    = try_parse_next(&mut iterator)?;
     let pressure: f32       = try_parse_next(&mut iterator)?;
     let vibration: u16      = try_parse_next(&mut iterator)?;
