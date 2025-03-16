@@ -80,12 +80,10 @@ pub fn data_tab(ui: &mut Ui, state: &mut DataTabState, data: &Vec<SensedData>) {
             .column(Column::auto().resizable(true))
             .column(Column::auto().resizable(true))
             .column(Column::auto().resizable(true))
-            .column(Column::auto().resizable(true))
             .stick_to_bottom(state.stick_to_bottom)
             .header(20.0, |mut header| {
                 header.col(|ui| {ui.label("#");});
                 header.col(|ui| {ui.label("Uptime");});
-                header.col(|ui| {ui.label("GPS Date");});
                 header.col(|ui| {ui.label("GPS Time");});
                 header.col(|ui| {ui.label("Temperature");});
                 header.col(|ui| {ui.label("Pressure");});
@@ -107,9 +105,6 @@ pub fn data_tab(ui: &mut Ui, state: &mut DataTabState, data: &Vec<SensedData>) {
                     });
                     row.col(|ui| {
                         ui.label(format!("{}", data_row.uptime));
-                    });
-                    row.col(|ui| {
-                        ui.label(format!("{}", data_row.gps_date));
                     });
                     row.col(|ui| {
                         ui.label(format!("{}", data_row.gps_time));
