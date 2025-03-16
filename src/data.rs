@@ -30,8 +30,6 @@ pub struct SensedData {
     pub temperature: f32,
     pub pressure: f32,
 
-    pub vibration: u16,
-
     pub acceleration: [f64; 3],
     pub acceleration_confidence: ReadConfidence,
 
@@ -74,7 +72,6 @@ pub fn parse_log_line(text: &str) -> Result<SensedData, LogReadError> {
     let _micros: u32         = try_parse_next(&mut iterator)?;
     let temperature: f32    = try_parse_next(&mut iterator)?;
     let pressure: f32       = try_parse_next(&mut iterator)?;
-    let vibration: u16      = try_parse_next(&mut iterator)?;
     let acceleration: [f64; 3] = [
         try_parse_next(&mut iterator)?,
         try_parse_next(&mut iterator)?,
@@ -99,7 +96,6 @@ pub fn parse_log_line(text: &str) -> Result<SensedData, LogReadError> {
         uptime,
         temperature,
         pressure,
-        vibration,
         acceleration,
         acceleration_confidence,
         gps_time,
@@ -115,14 +111,13 @@ mod tests {
     #[test]
     fn test_read_log_line() {
         assert_eq!(
-            parse_log_line("0\t1\t1\t2\t3\t4\t5\t5\t5\t0\t7\t7\t7\t0\t8\t9\t9\t10"),
+            parse_log_line("0\t1\t1\t2\t3\t4\t4\t4\t0\t6\t6\t6\t0\t8\t9\t9\t10"),
             Ok(SensedData {
                 index: 0,
                 uptime: 1,
                 temperature: 2.0,
                 pressure: 3.0,
-                vibration: 4,
-                acceleration: [5.0, 5.0, 5.0],
+                acceleration: [4.0, 4.0, 4.0],
                 acceleration_confidence: ReadConfidence::Unreliable,
                 gps_time: 8,
                 gps_position: [9.0, 9.0],
@@ -133,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_read_log_line_nan() {
-        let value = parse_log_line("0\t1\t1\t2\t3\t4\tnan\tnan\tnan\t0\t7\t7\t7\t0\t8\t9\t9\t10").unwrap();
+        let value = parse_log_line("0\t1\t1\t2\t3\tnan\tnan\tnan\t0\t6\t6\t6\t0\t8\t9\t9\t10").unwrap();
         assert_eq!(value.acceleration[0].is_nan(), true);
         assert_eq!(value.acceleration[1].is_nan(), true);
         assert_eq!(value.acceleration[2].is_nan(), true);
@@ -142,7 +137,7 @@ mod tests {
     #[test]
     fn test_read_log_line_real_data() {
         assert_eq!(
-            parse_log_line("670\t38076\t929\t27.19\t98709.02\t352\t-0.007813\t-0.011719\t0.015625\t3\t3.136642\t-0.274198\t2.485954\t0\t0\tnan\tnan\t0.000000")
+            parse_log_line("670\t38076\t929\t27.19\t98709.02\t-0.007813\t-0.011719\t0.015625\t3\t3.136642\t-0.274198\t2.485954\t0\t0\tnan\tnan\t0.000000")
                 .is_ok(),
             true
         );
