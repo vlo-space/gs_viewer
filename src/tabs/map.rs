@@ -1,4 +1,4 @@
-use egui::{Context, DragValue, Layout, RichText, Ui};
+use egui::{Context, DragValue, Layout, RichText, Ui, Widget};
 use walkers::{extras::{Place, Places, Style}, sources, HttpTiles, Map, MapMemory, Position};
 
 use crate::data::SensedData;
@@ -44,6 +44,8 @@ pub fn map_tab<'a,'b>(
 
         ui.label("Camera position");
         let speed = 0.01 / state.map_memory.zoom();
+        let mut map_position = Position::from_lat_lon(0.0, 0.0);
+
         if let Some(position) = state.map_memory.detached() {
             egui::Grid::new("map_position_grid").show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -62,6 +64,7 @@ pub fn map_tab<'a,'b>(
                         }
                         position.lon()
                     }).speed(speed));
+                    map_position = position;
                 });
             });
         } else {
@@ -75,7 +78,9 @@ pub fn map_tab<'a,'b>(
             ui.heading("Azimuth");
 
             ui.label(RichText::new( if let Some(last) = data.last() {
-                format!("{}", calculate_azimuth(&[state.ground_station.latitude, state.ground_station.longitude], &last.gps_position ))
+
+                map_position = Position::from_lat_lon(last.gps_position[0], last.gps_position[1]);
+                format!("{:.5}", calculate_azimuth(&[state.ground_station.latitude, state.ground_station.longitude], &last.gps_position ))
             }
             else {
                 "-".to_string()
@@ -83,8 +88,15 @@ pub fn map_tab<'a,'b>(
             ui.add_space(16.0);
         });
         
-        ui.label("Ground station position");
+        ui.horizontal(|ui|{
+            ui.label("Ground station position"); 
+            if ui.button("Apply position").clicked() {
+                state.ground_station.longitude = map_position.lon();
+                state.ground_station.latitude = map_position.lat();
+            }
+        });
        
+        ui.add_space(4.0);
         ui.horizontal(|ui|{
             ui.label("Lat: ");
             ui.add(egui::DragValue::new(&mut state.ground_station.latitude).speed(0.1).range(-90.0..=90.0));
@@ -122,6 +134,13 @@ pub fn map_tab<'a,'b>(
                     style: Style::default()
                 });
             }
+
+            points.push(Place {
+                position: Position::from_lat_lon(state.ground_station.latitude, state.ground_station.longitude),
+                label: "Ground station".to_owned(),
+                symbol: ' ',
+                style: Style::default()
+            });
 
             Places::new(points)
         }));
