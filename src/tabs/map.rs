@@ -78,9 +78,9 @@ pub fn map_tab<'a,'b>(
             ui.heading("Azimuth");
 
             ui.label(RichText::new( if let Some(last) = data.last() {
-
+                let azimuth = calculate_azimuth(&[state.ground_station.latitude, state.ground_station.longitude], &last.gps_position );
                 map_position = Position::from_lat_lon(last.gps_position[0], last.gps_position[1]);
-                format!("{:.5}", calculate_azimuth(&[state.ground_station.latitude, state.ground_station.longitude], &last.gps_position ))
+                format!("{:.2}", if azimuth < 0.0 {360.0 + azimuth} else {azimuth} )
             }
             else {
                 "-".to_string()
