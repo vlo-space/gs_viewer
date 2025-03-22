@@ -1,5 +1,5 @@
 
-use std::{fs, io::{BufRead, BufReader}, sync::{atomic::AtomicBool, Arc, Mutex}, thread, time::{Duration, Instant}};
+use std::{fs, io::{BufRead, BufReader, Read}, sync::{atomic::AtomicBool, Arc, Mutex}, thread, time::{Duration, Instant}};
 
 use crate::{data::{parse_log_line, SensedData}, tabs::{data::{data_tab, DataTabState}, map::{map_tab, MapTabState}, plot::{plot_tab, PlotTabState}}};
 
@@ -73,6 +73,29 @@ impl TemplateApp {
             status_message: None
         }
     }
+}
+
+fn spawn_data_reader_thread<'a, T: Read + BufRead + Send + 'static>(mut reader: T, data: Arc<Mutex<Vec<SensedData>>>) -> Arc<AtomicBool> {
+    let canceller = Arc::new(AtomicBool::new(false));
+    let cloned_canceller = canceller.clone();
+    thread::spawn(move || {
+        loop {
+            let mut string = String::new();
+            let _ = reader.read_line(&mut string);
+
+            let sensed = parse_log_line(&string);
+            
+            if canceller.load(std::sync::atomic::Ordering::Relaxed) {
+                println!("Cancel order detected; ending thread.");
+                return;
+            }
+
+            if let Ok(sensed) = sensed {
+                data.lock().unwrap().push(sensed);
+            }
+        }
+    });
+    cloned_canceller
 }
 
 impl eframe::App for TemplateApp {
@@ -153,34 +176,13 @@ impl eframe::App for TemplateApp {
                                         Err(e) => self.set_short_status(e.description),
                                         Ok(mut port) => {
                                             port.set_flow_control(serialport::FlowControl::Hardware).unwrap();
-                                            let mut reader = BufReader::new(port);
-
                                             let data: Arc<Mutex<Vec<SensedData>>> = Arc::new(Mutex::new(vec![]));
-                                            let canceler: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
 
                                             self.change_data_source(DataSource::SerialPort {
                                                 port_name: name.to_owned(),
                                                 baud_rate: 115200,
                                                 data: data.clone(),
-                                                cancel_reader: canceler.clone()
-                                            });
-
-                                            thread::spawn(move || {
-                                                loop {
-                                                    let mut string = String::new();
-                                                    let _ = reader.read_line(&mut string);
-
-                                                    let sensed = parse_log_line(&string);
-                                                    
-                                                    if canceler.load(std::sync::atomic::Ordering::Relaxed) {
-                                                        println!("Cancel order detected; ending thread.");
-                                                        return;
-                                                    }
-
-                                                    if let Ok(sensed) = sensed {
-                                                        data.lock().unwrap().push(sensed);
-                                                    }
-                                                }
+                                                cancel_reader: spawn_data_reader_thread(BufReader::new(port), data)
                                             });
                                         },
                                     }
