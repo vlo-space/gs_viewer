@@ -1,11 +1,12 @@
 
-use std::{fs, io::{BufRead, BufReader, Read}, sync::{atomic::AtomicBool, Arc, Mutex}, thread, time::{Duration, Instant}};
+use std::{fs, io::{BufRead, BufReader, Read}, sync::{atomic::AtomicBool, Arc, Mutex, MutexGuard}, thread, time::{Duration, Instant}};
 
-use crate::{data::{parse_log_line, SensedData}, tabs::{data::{data_tab, DataTabState}, map::{map_tab, MapTabState}, plot::{plot_tab, PlotTabState}}};
+use crate::{data::MissionData, tabs::{data::{data_tab, DataTabState}, map::{map_tab, MapTabState}, plot::{plot_tab, PlotTabState}}};
 
 pub struct TemplateApp {
     current_tab: Tab,
     data_source: DataSource,
+    current_session: usize,
 
     plot_state: PlotTabState,
     data_state: DataTabState,
@@ -20,16 +21,33 @@ pub struct TemplateApp {
 enum DataSource {
     File {
         name: String,
-        data: Vec<SensedData>
+        data: MissionData
     },
     SerialPort {
         port_name: String,
         baud_rate: u32,
 
-        data: Arc<Mutex<Vec<SensedData>>>,
+        data: Arc<Mutex<MissionData>>,
         cancel_reader: Arc<AtomicBool>
     },
     None
+}
+
+impl DataSource {
+    fn get_data_lock(&self) -> Option<MutexGuard<'_, MissionData>> {
+        match &self {
+            DataSource::SerialPort { data, .. } => Some(data.lock().unwrap()),
+            _ => None,
+        }
+    }
+
+    fn get_data<'a>(&'a self, lock: &'a Option<MutexGuard<'_, MissionData>>) -> Option<&'a MissionData> {
+        match &self {
+            DataSource::File { data, .. } => Some(&data),
+            DataSource::SerialPort { .. } => lock.as_ref().map(|v| &**v),
+            DataSource::None => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -63,6 +81,7 @@ impl TemplateApp {
             current_tab: Tab::Data,
 
             data_source: DataSource::None,
+            current_session: 0,
 
             plot_state: PlotTabState::default(),
             data_state: DataTabState {
@@ -75,23 +94,20 @@ impl TemplateApp {
     }
 }
 
-fn spawn_data_reader_thread<'a, T: Read + BufRead + Send + 'static>(mut reader: T, data: Arc<Mutex<Vec<SensedData>>>) -> Arc<AtomicBool> {
+fn spawn_data_reader_thread<'a, T: Read + BufRead + Send + 'static>(mut reader: T, data: Arc<Mutex<MissionData>>) -> Arc<AtomicBool> {
     let canceller = Arc::new(AtomicBool::new(false));
     let cloned_canceller = canceller.clone();
     thread::spawn(move || {
+        println!("Thread spawned");
         loop {
             let mut string = String::new();
             let _ = reader.read_line(&mut string);
 
-            let sensed = parse_log_line(&string);
-            
+            let _ = data.lock().unwrap().parse_line(&string);
+
             if canceller.load(std::sync::atomic::Ordering::Relaxed) {
                 println!("Cancel order detected; ending thread.");
                 return;
-            }
-
-            if let Ok(sensed) = sensed {
-                data.lock().unwrap().push(sensed);
             }
         }
     });
@@ -122,17 +138,12 @@ impl eframe::App for TemplateApp {
                             match fs::read_to_string(path) {
                                 Err(_) => self.set_short_status("Unable to read file".to_owned()),
                                 Ok(text) => {
-                                    self.data_source = DataSource::File { 
+                                    self.change_data_source(DataSource::File {
                                         name,
-                                        data: text.split("--- S").last().unwrap()
-                                            .lines()
-                                            .map(|line| parse_log_line(line))
-                                            .filter(|elem| elem.is_ok())
-                                            .map(|elem| elem.unwrap())
-                                            .collect() 
-                                    };
+                                        data: MissionData::from_log(&text)
+                                    });
                                 },
-                            }                            
+                            }
 
                             ui.close_menu();
                         }
@@ -176,7 +187,7 @@ impl eframe::App for TemplateApp {
                                         Err(e) => self.set_short_status(e.description),
                                         Ok(mut port) => {
                                             port.set_flow_control(serialport::FlowControl::Hardware).unwrap();
-                                            let data: Arc<Mutex<Vec<SensedData>>> = Arc::new(Mutex::new(vec![]));
+                                            let data: Arc<Mutex<MissionData>> = Arc::new(Mutex::new(MissionData::new()));
 
                                             self.change_data_source(DataSource::SerialPort {
                                                 port_name: name.to_owned(),
@@ -208,10 +219,29 @@ impl eframe::App for TemplateApp {
         });
 
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
+
             ui.horizontal(|ui| {
+                let data_lock = self.data_source.get_data_lock();
+                let data = self.data_source.get_data(&data_lock);
+                let session = data.and_then(|d| d.sessions().get(self.current_session));
+
+                if let Some(data) = data {
+                    fn session_name(index: usize, record_count: usize) -> String {
+                        format!("Session {index} ({record_count} records)")
+                    }
+
+                    egui::ComboBox::from_id_salt("session_combo_box")
+                        .selected_text(session_name(self.current_session, session.map_or(0, |s| s.len())))
+                        .show_ui(ui, |ui| {
+                            for (i, session) in data.sessions().iter().enumerate() {
+                                ui.selectable_value(&mut self.current_session, i, session_name(i, session.len()));
+                            }
+                        });
+                }
+
                 ui.label(match &self.data_source {
-                    DataSource::File { name, data } 
-                        => format!("Displaying {} lines from {}", data.len(), name),
+                    DataSource::File { name, .. }
+                        => format!("Displaying data from {}", name),
                     DataSource::SerialPort { port_name, baud_rate, .. } 
                         => format!("Connected to serial {} at {} baud", port_name, baud_rate ),
                     DataSource::None 
@@ -234,26 +264,26 @@ impl eframe::App for TemplateApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
+            let data_lock = self.data_source.get_data_lock();
+            let data = self.data_source.get_data(&data_lock);
 
-            let mut data: Option<Vec<SensedData>> = None;
-            self.run_with_data(|d| {
-                if let Some(d) = d {
-                    data = Some(d.to_vec());
-                }
-            });
+            let session = data.and_then(|d| d.sessions().get(self.current_session));
 
-            if let Some(data) = data {
+            if let Some(session) = session {
                 match self.current_tab {
                     Tab::Data => {
-                        data_tab(ui, &mut self.data_state, &data);
+                        data_tab(ui, &mut self.data_state, session);
                     },
                     Tab::Plot => {
-                        plot_tab(ui, &mut self.plot_state, &data);
+                        plot_tab(ui, &mut self.plot_state, session);
                     },
                     Tab::Map => {
-                        map_tab(ui, &mut self.map_state, &data);
+                        map_tab(ui, &mut self.map_state, session);
                     },
                 }
+            } else if let Some(_) = data {
+                ui.heading("No data.");
+                ui.label("If you are connected to the ground station, you should see some data shortly.");
             } else {
                 ui.heading("No data available.");
                 ui.label("Load a log file using File > Import log");
@@ -266,28 +296,19 @@ impl eframe::App for TemplateApp {
 }
 
 impl TemplateApp {
-    fn run_with_data<F>(&self, closure: F) where F: FnOnce(Option<&Vec<SensedData>>) {
-        match &self.data_source {
-            DataSource::File { data, .. } => {
-                closure(Some(&data));
-            },
-            DataSource::SerialPort { data, .. } => {
-                let lock = data.lock().unwrap();
-                
-                closure(Some(&lock));
-            },
-            DataSource::None => {
-                closure(None);
-            },
-        };
-    }
-
     fn change_data_source(&mut self, new: DataSource) {
         if let DataSource::SerialPort { cancel_reader, .. } = &self.data_source {
             cancel_reader.store(true, std::sync::atomic::Ordering::Relaxed);
         }
 
         self.data_source = new;
+
+        let data_lock = self.data_source.get_data_lock();
+        let data = self.data_source.get_data(&data_lock);
+
+        self.current_session = data
+            .map(|data| data.sessions().len())
+            .map_or(0, |len| { if len > 0 {len - 1} else { 0 } });
     }
 
     fn set_status(&mut self, text: String, duration: Duration) {

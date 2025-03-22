@@ -1,4 +1,51 @@
-use std::{fmt::Display, str::FromStr};
+use std::{fmt::Display, str::FromStr, vec};
+
+/// A record of an entire mission - an entire log file, or data
+/// recieved from the radio possibly across multiple CanSat sessions
+#[derive(Clone, Default, Debug, PartialEq)]
+pub struct MissionData {
+    sessions: Vec<Vec<SensedData>>,
+    last_index: Option<u32>,
+}
+
+impl MissionData {
+    pub fn new() -> Self {
+        Self { sessions: vec![], last_index: None }
+    }
+
+    pub fn from_log(text: &str) -> MissionData {
+        let mut data = MissionData::new();
+
+        for line in text.lines() {
+            if line.starts_with("--") {
+                continue;
+            }
+
+            let _ = data.parse_line(line);
+        }
+
+        data
+    }
+
+    pub fn sessions(&self) -> &[Vec<SensedData>] {
+        return &self.sessions
+    }
+
+    pub fn parse_line(&mut self, text: &str) -> Result<(), ()> {
+        let data = parse_log_line(text).map_err(|_| ())?;
+
+        if self.last_index.is_none() || data.index < self.last_index.unwrap_or(0) {
+            self.sessions.push(vec![data]);
+        } else {
+            self.sessions.last_mut().expect("A session should have been added by now")
+                .push(data);
+        }
+
+        self.last_index = Some(data.index);
+
+        Ok(())
+    }
+}
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ReadConfidence {
@@ -43,7 +90,7 @@ pub enum LogReadError {
     ParseError { msg: String, value: Option<String> },
 }
 
-pub fn parse_log_line(text: &str) -> Result<SensedData, LogReadError> {
+fn parse_log_line(text: &str) -> Result<SensedData, LogReadError> {
     let text = text.trim_start().trim_end();
 
     let mut iterator = text.split('\t');

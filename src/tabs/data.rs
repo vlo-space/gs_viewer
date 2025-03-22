@@ -44,18 +44,18 @@ pub fn data_tab(ui: &mut Ui, state: &mut DataTabState, data: &Vec<SensedData>) {
             let mut prev_uptime = 0;
             for row in data {
                 if prev_uptime != 0 {
-                    let delta = row.uptime - prev_uptime;
+                    if let Some(delta) = row.uptime.checked_sub(prev_uptime) {
+                        if delta > max_time {
+                            max_time = delta;
+                        }
 
-                    if delta > max_time {
-                        max_time = delta;
+                        if delta < min_time {
+                            min_time = delta;
+                        }
+
+                        sum += delta;
+                        count += 1;
                     }
-
-                    if delta < min_time {
-                        min_time = delta;
-                    }
-
-                    sum += delta;
-                    count += 1;
                 }
 
                 prev_uptime = row.uptime;
@@ -64,6 +64,7 @@ pub fn data_tab(ui: &mut Ui, state: &mut DataTabState, data: &Vec<SensedData>) {
             ui.label(format!("Avg time between messages: {}", sum as f32 / count as f32));
             ui.label(format!("Max time between messages: {}", max_time));
             ui.label(format!("Min time between messages: {}", min_time));
+            ui.weak("Records with a negative time delta are ignored.");
         }
         
     });
