@@ -44,75 +44,81 @@ pub fn map_tab<'a,'b>(
     state: &mut MapTabState,
     data: &Vec<SensedData>
 ) {
-    egui::SidePanel::left("map_side_panel").min_width(231.0).show_inside(ui, |ui| {
-        ui.heading("Map settings");
+    let mut map_position = Position::from_lat_lon(0.0, 0.0);
 
-        ui.checkbox(&mut state.geo_view, "Satellite view");
+    egui::SidePanel::left("map_side_panel").min_width(231.0).show_inside(ui, |ui| {
+
+        CollapsingHeader::new("Map").default_open(true).show(ui, |ui| {
+            ui.checkbox(&mut state.geo_view, "Satellite view");
+        });
 
         ui.separator();
 
-        ui.label("Camera position");
-        let speed = 0.01 / state.map_memory.zoom();
-        let mut map_position = Position::from_lat_lon(0.0, 0.0);
+        CollapsingHeader::new("Camera").default_open(true).show(ui, |ui| {
+            ui.label("Camera position");
+            let speed = 0.01 / state.map_memory.zoom();
 
-        if let Some(position) = state.map_memory.detached() {
-            egui::Grid::new("map_position_grid").show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    if ui.button("Reset").clicked() {
-                        state.map_memory.follow_my_position();
-                    }
-                    ui.add(DragValue::from_get_set(|v: Option<f64>| {
-                        if let Some(v) = v {
-                            state.map_memory.center_at(Position::from_lat_lon(v, position.lon()));
+            if let Some(position) = state.map_memory.detached() {
+                egui::Grid::new("map_position_grid").show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        if ui.button("Reset").clicked() {
+                            state.map_memory.follow_my_position();
                         }
-                        position.lat()
-                    }).speed(speed));
-                    ui.add(DragValue::from_get_set(|v: Option<f64>| {
-                        if let Some(v) = v {
-                            state.map_memory.center_at(Position::from_lat_lon(position.lat(), v));
-                        }
-                        position.lon()
-                    }).speed(speed));
-                    map_position = position;
+                        ui.add(DragValue::from_get_set(|v: Option<f64>| {
+                            if let Some(v) = v {
+                                state.map_memory.center_at(Position::from_lat_lon(v, position.lon()));
+                            }
+                            position.lat()
+                        }).speed(speed));
+                        ui.add(DragValue::from_get_set(|v: Option<f64>| {
+                            if let Some(v) = v {
+                                state.map_memory.center_at(Position::from_lat_lon(position.lat(), v));
+                            }
+                            position.lon()
+                        }).speed(speed));
+                        map_position = position;
+                    });
                 });
+            } else {
+                ui.label("Following the probe");
+            }
+        });
+
+        ui.separator();
+
+        CollapsingHeader::new("Azimuth calculation").default_open(true).show(ui, |ui| {
+            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui|{
+                ui.add_space(18.0);
+                ui.heading("Azimuth");
+
+                ui.label(RichText::new( if let Some(last) = data.last() {
+                    let azimuth = calculate_azimuth(&[state.ground_station.latitude, state.ground_station.longitude], &last.gps_position );
+                    map_position = Position::from_lat_lon(last.gps_position[0], last.gps_position[1]);
+                    format!("{:.2}", if azimuth < 0.0 {360.0 + azimuth} else {azimuth} )
+                }
+                else {
+                    "-".to_string()
+                }).size(40.0));
+                ui.add_space(16.0);
             });
-        } else {
-            ui.label("Following the probe");
-        }
 
-        ui.add_space(32.0);
+            ui.horizontal(|ui|{
+                ui.label("Ground station position");
+                if ui.button("Apply position").clicked() {
+                    state.ground_station.longitude = map_position.lon();
+                    state.ground_station.latitude = map_position.lat();
+                }
+            });
         
-        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui|{
-            ui.add_space(16.0);
-            ui.heading("Azimuth");
-
-            ui.label(RichText::new( if let Some(last) = data.last() {
-                let azimuth = calculate_azimuth(&[state.ground_station.latitude, state.ground_station.longitude], &last.gps_position );
-                map_position = Position::from_lat_lon(last.gps_position[0], last.gps_position[1]);
-                format!("{:.2}", if azimuth < 0.0 {360.0 + azimuth} else {azimuth} )
-            }
-            else {
-                "-".to_string()
-            }).size(40.0));
-            ui.add_space(16.0);
-        });
-        
-        ui.horizontal(|ui|{
-            ui.label("Ground station position"); 
-            if ui.button("Apply position").clicked() {
-                state.ground_station.longitude = map_position.lon();
-                state.ground_station.latitude = map_position.lat();
-            }
-        });
-       
-        ui.add_space(4.0);
-        ui.horizontal(|ui|{
-            ui.label("Lat: ");
-            ui.add(egui::DragValue::new(&mut state.ground_station.latitude).speed(0.1).range(-90.0..=90.0));
-            ui.label("Lon: ");
-            ui.add(egui::DragValue::new(&mut state.ground_station.longitude).speed(0.1).range(-180.0..=180.0));
-            ui.label("Alt: ");
-            ui.add(egui::DragValue::new(&mut state.ground_station.altitude).speed(0.1).range(0.0..=f64::MAX));
+            ui.add_space(4.0);
+            ui.horizontal(|ui|{
+                ui.label("Lat: ");
+                ui.add(egui::DragValue::new(&mut state.ground_station.latitude).speed(0.1).range(-90.0..=90.0));
+                ui.label("Lon: ");
+                ui.add(egui::DragValue::new(&mut state.ground_station.longitude).speed(0.1).range(-180.0..=180.0));
+                ui.label("Alt: ");
+                ui.add(egui::DragValue::new(&mut state.ground_station.altitude).speed(0.1).range(0.0..=f64::MAX));
+            });
         });
     
         ui.separator();
