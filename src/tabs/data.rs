@@ -32,7 +32,7 @@ pub fn data_tab(ui: &mut Ui, state: &mut DataTabState, data: &Vec<SensedData>) {
 
             ui.label(format!("Recieved: {}", recieved));
             ui.label(format!("Total: {}", total));
-            ui.label(format!("Lost: {}, {}%", total - recieved, (total - recieved) as f32 / (total as f32)));
+            ui.label(format!("Lost: {}, {:.2}%", total - recieved, (total - recieved) as f32 / (total as f32) * 100.0));
 
             ui.allocate_space(Vec2 { x: 0.0, y: 10.0 });
 
