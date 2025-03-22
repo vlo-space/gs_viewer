@@ -1,17 +1,22 @@
-use egui::{Context, DragValue, Layout, RichText, Ui, Widget};
+use std::usize;
+
+use egui::{color_picker::color_edit_button_rgba, CollapsingHeader, Color32, Context, DragValue, Frame, Layout, Rgba, RichText, Ui};
 use walkers::{extras::{Place, Places, Style}, sources, HttpTiles, Map, MapMemory, Position};
 
 use crate::data::SensedData;
+use crate::util::map_trail::TrailPlugin;
 
 pub struct MapTabState {
     map_memory: MapMemory,
 
     geo_view: bool,
-
     osm_tiles: HttpTiles,
     geo_tiles: HttpTiles,
 
-    ground_station: GroundStationPosition
+    ground_station: GroundStationPosition,
+    
+    trail_color: Rgba,
+    trail_length: usize,
 }
 #[derive(Default)]
 struct GroundStationPosition {
@@ -27,7 +32,9 @@ impl MapTabState {
             geo_view: false,
             osm_tiles: HttpTiles::new(sources::OpenStreetMap, egui_ctx.clone()),
             geo_tiles: HttpTiles::new(sources::Geoportal, egui_ctx.clone()),
-            ground_station: GroundStationPosition::default()
+            ground_station: GroundStationPosition::default(),
+            trail_color: Color32::BLACK.into(),
+            trail_length: 0
         }
     }
 }
@@ -41,6 +48,8 @@ pub fn map_tab<'a,'b>(
         ui.heading("Map settings");
 
         ui.checkbox(&mut state.geo_view, "Satellite view");
+
+        ui.separator();
 
         ui.label("Camera position");
         let speed = 0.01 / state.map_memory.zoom();
@@ -106,6 +115,22 @@ pub fn map_tab<'a,'b>(
             ui.add(egui::DragValue::new(&mut state.ground_station.altitude).speed(0.1).range(0.0..=f64::MAX));
         });
     
+        ui.separator();
+
+        CollapsingHeader::new("Position trail").default_open(true).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Show last");
+                ui.add(DragValue::new(&mut state.trail_length).range(0..=usize::MAX).speed(50.0));
+                ui.label("positions");
+            });
+            ui.horizontal(|ui| {
+                ui.label("Trail color: ");
+                color_edit_button_rgba(ui, &mut state.trail_color, egui::color_picker::Alpha::Opaque);
+            });
+        });
+
+        ui.separator();
+
         ui.with_layout(Layout::bottom_up(egui::Align::Min), |ui| {
             ui.label("Double-click to reset camera position");
         });
@@ -118,32 +143,44 @@ pub fn map_tab<'a,'b>(
 
     let current_position = data.last().map_or(None, |s| Some(Position::from_lat_lon(s.gps_position[0], s.gps_position[1])));
 
-    egui::CentralPanel::default().show_inside(ui, |ui| {
-        let map_response = ui.add(Map::new(
-            Some(if state.geo_view {&mut state.geo_tiles} else {&mut state.osm_tiles}),
-            &mut state.map_memory,
-            current_position.unwrap_or(Position::from_lat_lon(0.0, 0.0))
-        ).with_plugin({
-            let mut points: Vec<Place> = vec![];
+    egui::CentralPanel::default().frame(Frame::none()).show_inside(ui, |ui| {
 
-            if let Some(position) = current_position {
+        let map_response = ui.add(
+            Map::new(
+                Some(if state.geo_view {&mut state.geo_tiles} else {&mut state.osm_tiles}),
+                &mut state.map_memory,
+                current_position.unwrap_or(Position::from_lat_lon(0.0, 0.0))
+            )
+            .with_plugin(
+                TrailPlugin {
+                    positions: &mut data.iter().rev().take(state.trail_length).map(|data| {
+                        Position::from_lat_lon(data.gps_position[0], data.gps_position[1])
+                    }),
+                    color: state.trail_color.into()
+                }
+            )
+            .with_plugin({
+                let mut points: Vec<Place> = vec![];
+
+                if let Some(position) = current_position {
+                    points.push(Place {
+                        position,
+                        label: "Latest location".to_owned(),
+                        symbol: ' ',
+                        style: Style::default()
+                    });
+                }
+
                 points.push(Place {
-                    position,
-                    label: "Latest location".to_owned(),
+                    position: Position::from_lat_lon(state.ground_station.latitude, state.ground_station.longitude),
+                    label: "Ground station".to_owned(),
                     symbol: ' ',
                     style: Style::default()
                 });
-            }
 
-            points.push(Place {
-                position: Position::from_lat_lon(state.ground_station.latitude, state.ground_station.longitude),
-                label: "Ground station".to_owned(),
-                symbol: ' ',
-                style: Style::default()
-            });
-
-            Places::new(points)
-        }));
+                Places::new(points)
+            })
+        );
 
         if map_response.double_clicked() {
             state.map_memory.follow_my_position();
