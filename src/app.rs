@@ -88,7 +88,7 @@ impl TemplateApp {
                 stick_to_bottom: true
             },
             map_state: MapTabState::new(&cc.egui_ctx),
-            auto_repaint: false,
+            auto_repaint: true,
             status_message: None
         }
     }
