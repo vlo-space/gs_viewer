@@ -1,7 +1,8 @@
 use std::usize;
 
+use directories::ProjectDirs;
 use egui::{color_picker::color_edit_button_rgba, CollapsingHeader, Color32, Context, DragValue, Frame, Layout, Rgba, RichText, Ui};
-use walkers::{extras::{Place, Places, Style}, sources, HttpTiles, Map, MapMemory, Position};
+use walkers::{extras::{Place, Places, Style}, sources, HttpOptions, HttpTiles, Map, MapMemory, Position};
 
 use crate::data::SensedData;
 use crate::util::map_trail::TrailPlugin;
@@ -27,11 +28,30 @@ struct GroundStationPosition {
 
 impl MapTabState {
     pub fn new(egui_ctx: &Context) -> Self {
+        let cache = ProjectDirs::from("eu", "vlospace", env!("CARGO_CRATE_NAME"))
+            .map(|dirs| dirs.cache_dir().to_path_buf());
+
+        let default_options = HttpOptions::default();
+
         MapTabState {
             map_memory: MapMemory::default(),
             geo_view: false,
-            osm_tiles: HttpTiles::new(sources::OpenStreetMap, egui_ctx.clone()),
-            geo_tiles: HttpTiles::new(sources::Geoportal, egui_ctx.clone()),
+            osm_tiles: HttpTiles::with_options(
+                sources::OpenStreetMap,
+                HttpOptions {
+                    cache: cache.clone().map(|p| p.join("osm-tiles")),
+                    user_agent: default_options.user_agent.clone()
+                },
+                egui_ctx.clone()
+            ),
+            geo_tiles: HttpTiles::with_options(
+                sources::Geoportal,
+                HttpOptions {
+                    cache: cache.map(|p| p.join("geo-tiles")),
+                    user_agent: default_options.user_agent
+                },
+                egui_ctx.clone()
+            ),
             ground_station: GroundStationPosition::default(),
             trail_color: Color32::BLACK.into(),
             trail_length: 0

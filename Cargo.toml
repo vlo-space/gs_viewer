@@ -24,6 +24,7 @@ log = "0.4"
 rand = "0.8"
 rfd = "0.13"
 serialport = "4.6.1"
+directories = "6.0.0"
 
 # You only need serde if you want app persistence:
 serde = { version = "1", features = ["derive"] }
