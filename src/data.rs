@@ -88,6 +88,7 @@ pub struct SensedData {
 #[derive(Debug, PartialEq)]
 pub enum LogReadError {
     ParseError { msg: String, value: Option<String> },
+    ReadError,
 }
 
 fn parse_log_line(text: &str) -> Result<SensedData, LogReadError> {
@@ -100,7 +101,7 @@ fn parse_log_line(text: &str) -> Result<SensedData, LogReadError> {
     // }
 
     fn try_parse_next<T: std::str::FromStr>(iter: & mut dyn Iterator<Item = & str>) -> Result<T, LogReadError> where <T as FromStr>::Err: Display {
-        let value = iter.next().unwrap();
+        let value = iter.next().ok_or(LogReadError::ReadError)?;
         match value.parse::<T>() {
             Ok(v) => Ok(v),
             Err(e) => {
