@@ -23,7 +23,6 @@ pub struct MapTabState {
 struct GroundStationPosition {
     latitude: f64,
     longitude: f64,
-    altitude: f64,
  }
 
 impl MapTabState {
@@ -64,8 +63,6 @@ pub fn map_tab<'a,'b>(
     state: &mut MapTabState,
     data: &Vec<SensedData>
 ) {
-    let mut map_position = Position::from_lat_lon(0.0, 0.0);
-
     egui::SidePanel::left("map_side_panel").min_width(231.0).show_inside(ui, |ui| {
 
         CollapsingHeader::new("Map").default_open(true).show(ui, |ui| {
@@ -96,7 +93,6 @@ pub fn map_tab<'a,'b>(
                             }
                             position.lon()
                         }).speed(speed));
-                        map_position = position;
                     });
                 });
             } else {
@@ -113,7 +109,6 @@ pub fn map_tab<'a,'b>(
 
                 ui.label(RichText::new( if let Some(last) = data.last() {
                     let azimuth = calculate_azimuth(&[state.ground_station.latitude, state.ground_station.longitude], &last.gps_position );
-                    map_position = Position::from_lat_lon(last.gps_position[0], last.gps_position[1]);
                     format!("{:.2}", if azimuth < 0.0 {360.0 + azimuth} else {azimuth} )
                 }
                 else {
@@ -121,24 +116,25 @@ pub fn map_tab<'a,'b>(
                 }).size(40.0));
                 ui.add_space(16.0);
             });
-
-            ui.horizontal(|ui|{
-                ui.label("Ground station position");
-                if ui.button("Apply position").clicked() {
-                    state.ground_station.longitude = map_position.lon();
-                    state.ground_station.latitude = map_position.lat();
-                }
-            });
         
-            ui.add_space(4.0);
+            ui.label("Ground station position");
+
+            ui.add_space(2.0);
+
             ui.horizontal(|ui|{
                 ui.label("Lat: ");
                 ui.add(egui::DragValue::new(&mut state.ground_station.latitude).speed(0.1).range(-90.0..=90.0));
                 ui.label("Lon: ");
                 ui.add(egui::DragValue::new(&mut state.ground_station.longitude).speed(0.1).range(-180.0..=180.0));
-                ui.label("Alt: ");
-                ui.add(egui::DragValue::new(&mut state.ground_station.altitude).speed(0.1).range(0.0..=f64::MAX));
             });
+
+            ui.add_space(2.0);
+
+            if ui.button("Set to probe position").clicked() {
+                let position = data.last().map_or([0.0, 0.0], |d| d.gps_position);
+                state.ground_station.latitude = position[0];
+                state.ground_station.longitude = position[1];
+            }
         });
     
         ui.separator();
