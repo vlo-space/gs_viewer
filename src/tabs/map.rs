@@ -177,21 +177,23 @@ pub fn map_tab(
             .with_plugin({
                 let mut points: Vec<LabeledSymbol> = vec![];
 
-                if let Some(position) = current_position {
-                    points.push(LabeledSymbol {
+                fn labeled_symbol(position: Position ,name: &str) -> LabeledSymbol {
+                    LabeledSymbol {
                         position,
-                        label: "Latest location".to_owned(),
-                        symbol: None,
+                        label: name.into(),
+                        symbol: Some(walkers::extras::Symbol::Circle("".into())),
                         style: LabeledSymbolStyle::default()
-                    });
+                    }
                 }
 
-                points.push(LabeledSymbol {
-                    position: Position::new(state.ground_station.latitude, state.ground_station.longitude),
-                    label: "Ground station".to_owned(),
-                    symbol: None,
-                    style: LabeledSymbolStyle::default()
-                });
+                if let Some(position) = current_position {
+                    points.push(labeled_symbol(position, "Latest position"));
+                }
+
+                points.push(labeled_symbol(
+                    Position::new(state.ground_station.latitude, state.ground_station.longitude),
+                    "Ground station"
+                ));
 
                 Places::new(points)
             })
