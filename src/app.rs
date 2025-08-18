@@ -43,7 +43,7 @@ impl DataSource {
 
     fn get_data<'a>(&'a self, lock: &'a Option<MutexGuard<'_, MissionData>>) -> Option<&'a MissionData> {
         match &self {
-            DataSource::File { data, .. } => Some(&data),
+            DataSource::File { data, .. } => Some(data),
             DataSource::SerialPort { .. } => lock.as_ref().map(|v| &**v),
             DataSource::None => None,
         }
@@ -94,7 +94,7 @@ impl TemplateApp {
     }
 }
 
-fn spawn_data_reader_thread<'a, T: Read + BufRead + Send + 'static>(mut reader: T, data: Arc<Mutex<MissionData>>) -> Arc<AtomicBool> {
+fn spawn_data_reader_thread<T: Read + BufRead + Send + 'static>(mut reader: T, data: Arc<Mutex<MissionData>>) -> Arc<AtomicBool> {
     let canceller = Arc::new(AtomicBool::new(false));
     let cloned_canceller = canceller.clone();
     thread::spawn(move || {
@@ -126,7 +126,7 @@ impl eframe::App for TemplateApp {
         }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
+            egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Import log").clicked() {
                         if let Some(path) = rfd::FileDialog::new().pick_file() {
@@ -145,7 +145,7 @@ impl eframe::App for TemplateApp {
                                 },
                             }
 
-                            ui.close_menu();
+                            ui.close();
                         }
                     }
 
@@ -281,7 +281,7 @@ impl eframe::App for TemplateApp {
                         map_tab(ui, &mut self.map_state, session);
                     },
                 }
-            } else if let Some(_) = data {
+            } else if data.is_some() {
                 ui.heading("No data.");
                 ui.label("If you are connected to the ground station, you should see some data shortly.");
             } else {

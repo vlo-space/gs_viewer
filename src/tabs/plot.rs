@@ -1,4 +1,4 @@
-use egui::{emath::Numeric, CollapsingHeader, Color32, Layout, Slider, Ui, WidgetText};
+use egui::{emath::Numeric, CollapsingHeader, Color32, Layout, Slider, Ui, Vec2b, WidgetText};
 use egui_plot::{Legend, Line, Plot, PlotPoints};
 
 use crate::data::SensedData;
@@ -191,8 +191,8 @@ pub fn plot_tab(ui: &mut Ui, state: &mut PlotTabState, data: &Vec<SensedData>) {
         });
     });
 
-    let line: &dyn Fn(&str, Color32, &LineSettings, &dyn Fn(&SensedData) -> f64) -> Line = &|name, color, settings, processor| {
-        Line::new(PlotPoints::new(
+    let line: &dyn for<'a> Fn(&'a str, Color32, &'a LineSettings, &'a dyn Fn(&SensedData) -> f64) -> Line<'a> = &|name, color, settings, processor| {
+        Line::new(name, PlotPoints::new(
             data.iter()
                 .filter_map(|s| {
                     let value: f64 = processor(s);
@@ -208,14 +208,13 @@ pub fn plot_tab(ui: &mut Ui, state: &mut PlotTabState, data: &Vec<SensedData>) {
                 })
                 .collect()
         ))
-        .name(name)
         .color(color)
     };
 
     egui::CentralPanel::default().show_inside(ui, |ui| {
         Plot::new("plot")
             .legend(Legend::default())
-            .auto_bounds([true, true].into())
+            .auto_bounds(Vec2b::new(true, true))
             .show(ui, |plot_ui| {
                 plot_ui.line(line("Acceleration X", Color32::from_rgb(239, 52, 80),  &state.acceleration[0], &|s| { s.acceleration[0] }));
                 plot_ui.line(line("Acceleration Y", Color32::from_rgb(130, 202, 7),  &state.acceleration[1], &|s| { s.acceleration[1] }));

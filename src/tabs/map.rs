@@ -1,8 +1,7 @@
-use std::usize;
 
 use directories::ProjectDirs;
 use egui::{color_picker::color_edit_button_rgba, CollapsingHeader, Color32, Context, DragValue, Frame, Layout, Rgba, RichText, Ui};
-use walkers::{extras::{Place, Places, Style}, sources, HttpOptions, HttpTiles, Map, MapMemory, Position};
+use walkers::{extras::{LabeledSymbol, LabeledSymbolStyle, Places}, sources, HttpOptions, HttpTiles, Map, MapMemory, Position};
 
 use crate::data::SensedData;
 use crate::util::map_trail::TrailPlugin;
@@ -23,14 +22,12 @@ pub struct MapTabState {
 struct GroundStationPosition {
     latitude: f64,
     longitude: f64,
- }
+}
 
 impl MapTabState {
     pub fn new(egui_ctx: &Context) -> Self {
         let cache = ProjectDirs::from("eu", "vlospace", env!("CARGO_CRATE_NAME"))
             .map(|dirs| dirs.cache_dir().to_path_buf());
-
-        let default_options = HttpOptions::default();
 
         MapTabState {
             map_memory: MapMemory::default(),
@@ -39,17 +36,17 @@ impl MapTabState {
                 sources::OpenStreetMap,
                 HttpOptions {
                     cache: cache.clone().map(|p| p.join("osm-tiles")),
-                    user_agent: default_options.user_agent.clone()
+                    ..Default::default()
                 },
-                egui_ctx.clone()
+                egui_ctx.to_owned()
             ),
             geo_tiles: HttpTiles::with_options(
                 sources::Geoportal,
                 HttpOptions {
                     cache: cache.map(|p| p.join("geo-tiles")),
-                    user_agent: default_options.user_agent
+                    ..Default::default()
                 },
-                egui_ctx.clone()
+                egui_ctx.to_owned()
             ),
             ground_station: GroundStationPosition::default(),
             trail_color: Color32::BLACK.into(),
@@ -58,7 +55,7 @@ impl MapTabState {
     }
 }
 
-pub fn map_tab<'a,'b>(
+pub fn map_tab(
     ui: &mut Ui, 
     state: &mut MapTabState,
     data: &Vec<SensedData>
@@ -83,15 +80,15 @@ pub fn map_tab<'a,'b>(
                         }
                         ui.add(DragValue::from_get_set(|v: Option<f64>| {
                             if let Some(v) = v {
-                                state.map_memory.center_at(Position::from_lat_lon(v, position.lon()));
+                                state.map_memory.center_at(Position::new(v, position.y()));
                             }
-                            position.lat()
+                            position.x()
                         }).speed(speed));
                         ui.add(DragValue::from_get_set(|v: Option<f64>| {
                             if let Some(v) = v {
-                                state.map_memory.center_at(Position::from_lat_lon(position.lat(), v));
+                                state.map_memory.center_at(Position::new(position.x(), v));
                             }
-                            position.lon()
+                            position.y()
                         }).speed(speed));
                     });
                 });
@@ -163,41 +160,41 @@ pub fn map_tab<'a,'b>(
     //     ui.add(Slider::new(&mut state.index_slider_value, 0..=data.len()));
     // });
 
-    let current_position = data.last().map_or(None, |s| Some(Position::from_lat_lon(s.gps_position[0], s.gps_position[1])));
+    let current_position = data.last().map_or(None, |s| Some(Position::new(s.gps_position[0], s.gps_position[1])));
 
-    egui::CentralPanel::default().frame(Frame::none()).show_inside(ui, |ui| {
+    egui::CentralPanel::default().frame(Frame::NONE).show_inside(ui, |ui| {
 
         let map_response = ui.add(
             Map::new(
                 Some(if state.geo_view {&mut state.geo_tiles} else {&mut state.osm_tiles}),
                 &mut state.map_memory,
-                current_position.unwrap_or(Position::from_lat_lon(0.0, 0.0))
+                current_position.unwrap_or(Position::new(0.0, 0.0))
             )
             .with_plugin(
                 TrailPlugin {
                     positions: &mut data.iter().rev().take(state.trail_length).map(|data| {
-                        Position::from_lat_lon(data.gps_position[0], data.gps_position[1])
+                        Position::new(data.gps_position[0], data.gps_position[1])
                     }),
                     color: state.trail_color.into()
                 }
             )
             .with_plugin({
-                let mut points: Vec<Place> = vec![];
+                let mut points: Vec<LabeledSymbol> = vec![];
 
                 if let Some(position) = current_position {
-                    points.push(Place {
+                    points.push(LabeledSymbol {
                         position,
                         label: "Latest location".to_owned(),
-                        symbol: ' ',
-                        style: Style::default()
+                        symbol: None,
+                        style: LabeledSymbolStyle::default()
                     });
                 }
 
-                points.push(Place {
-                    position: Position::from_lat_lon(state.ground_station.latitude, state.ground_station.longitude),
+                points.push(LabeledSymbol {
+                    position: Position::new(state.ground_station.latitude, state.ground_station.longitude),
                     label: "Ground station".to_owned(),
-                    symbol: ' ',
-                    style: Style::default()
+                    symbol: None,
+                    style: LabeledSymbolStyle::default()
                 });
 
                 Places::new(points)
