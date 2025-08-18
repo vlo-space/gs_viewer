@@ -1,5 +1,7 @@
 use std::{fmt::Display, str::FromStr, vec};
 
+use log::warn;
+
 /// A record of an entire mission - an entire log file, or data
 /// recieved from the radio possibly across multiple CanSat sessions
 #[derive(Clone, Default, Debug, PartialEq)]
@@ -21,7 +23,9 @@ impl MissionData {
                 continue;
             }
 
-            let _ = data.parse_line(line);
+            if let Err(err) = data.parse_line(line) {
+                warn!("Failed to parse log line: {err:?}");
+            }
         }
 
         data
@@ -31,8 +35,8 @@ impl MissionData {
         &self.sessions
     }
 
-    pub fn parse_line(&mut self, text: &str) -> Result<(), ()> {
-        let data = parse_log_line(text).map_err(|_| ())?;
+    pub fn parse_line(&mut self, text: &str) -> Result<(), LogReadError> {
+        let data = parse_log_line(text)?;
 
         if self.last_index.is_none() || data.index < self.last_index.unwrap_or(0) {
             self.sessions.push(vec![data]);
