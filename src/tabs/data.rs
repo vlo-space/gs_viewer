@@ -8,7 +8,7 @@ pub struct DataTabState {
     pub stick_to_bottom: bool
 }
 
-pub fn data_tab(ui: &mut Ui, state: &mut DataTabState, data: &Vec<SensedData>) {
+pub fn data_tab(ui: &mut Ui, state: &mut DataTabState, data: &[SensedData]) {
     let text_height = egui::TextStyle::Body
         .resolve(ui.style())
         .size

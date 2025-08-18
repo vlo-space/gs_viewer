@@ -18,6 +18,7 @@ pub struct MapTabState {
     trail_color: Rgba,
     trail_length: usize,
 }
+
 #[derive(Default)]
 struct GroundStationPosition {
     latitude: f64,
@@ -58,7 +59,7 @@ impl MapTabState {
 pub fn map_tab(
     ui: &mut Ui, 
     state: &mut MapTabState,
-    data: &Vec<SensedData>
+    data: &[SensedData]
 ) {
     egui::SidePanel::left("map_side_panel").min_width(231.0).show_inside(ui, |ui| {
 
@@ -155,12 +156,7 @@ pub fn map_tab(
         });
     });
 
-    // egui::TopBottomPanel::bottom("map_bottom_panel").resizable(false).show_inside(ui, |ui| {
-    //     ui.spacing_mut().slider_width = ui.available_width();
-    //     ui.add(Slider::new(&mut state.index_slider_value, 0..=data.len()));
-    // });
-
-    let current_position = data.last().map_or(None, |s| Some(Position::new(s.gps_position[0], s.gps_position[1])));
+    let current_position = data.last().map(|s| Position::new(s.gps_position[0], s.gps_position[1]));
 
     egui::CentralPanel::default().frame(Frame::NONE).show_inside(ui, |ui| {
 

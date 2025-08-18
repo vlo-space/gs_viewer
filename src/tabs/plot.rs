@@ -90,7 +90,7 @@ fn duration_input(ui: &mut Ui, total: &mut u64) {
     });
 }
 
-pub fn plot_tab(ui: &mut Ui, state: &mut PlotTabState, data: &Vec<SensedData>) {
+pub fn plot_tab(ui: &mut Ui, state: &mut PlotTabState, data: &[SensedData]) {
 
     fn line_config(ui: &mut Ui, text: impl Into<WidgetText>, adjust: &mut LineSettings) {
         ui.checkbox(&mut adjust.visible, text);

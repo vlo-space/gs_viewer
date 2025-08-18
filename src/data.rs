@@ -28,7 +28,7 @@ impl MissionData {
     }
 
     pub fn sessions(&self) -> &[Vec<SensedData>] {
-        return &self.sessions
+        &self.sessions
     }
 
     pub fn parse_line(&mut self, text: &str) -> Result<(), ()> {
@@ -96,10 +96,6 @@ fn parse_log_line(text: &str) -> Result<SensedData, LogReadError> {
 
     let mut iterator = text.split('\t');
 
-    // fn try_parse_next<T>(iter: &mut dyn Iterator<Item = &str>) -> Result<T, ()> where T: FromStr {
-    //     iter.next().unwrap().parse::<T>()
-    // }
-
     fn try_parse_next<T: std::str::FromStr>(iter: & mut dyn Iterator<Item = & str>) -> Result<T, LogReadError> where <T as FromStr>::Err: Display {
         let value = iter.next().ok_or(LogReadError::ReadError)?;
         match value.parse::<T>() {
@@ -132,14 +128,14 @@ fn parse_log_line(text: &str) -> Result<SensedData, LogReadError> {
         try_parse_next(&mut iterator)?
     ];
     let _gyroscope_confidence = try_parse_confidence_value(&mut iterator)?;
-    let gps_time: u32       = try_parse_next(&mut iterator)?;
+    let gps_time: u32         = try_parse_next(&mut iterator)?;
     let gps_position: [f64; 2] = [
         try_parse_next(&mut iterator)?,
         try_parse_next(&mut iterator)?
     ];
     let gps_altitude: f64   = try_parse_next(&mut iterator)?;
 
-    return Ok(SensedData {
+    Ok(SensedData {
         index,
         uptime,
         temperature,
@@ -177,17 +173,16 @@ mod tests {
     #[test]
     fn test_read_log_line_nan() {
         let value = parse_log_line("0\t1\t1\t2\t3\tnan\tnan\tnan\t0\t6\t6\t6\t0\t8\t9\t9\t10").unwrap();
-        assert_eq!(value.acceleration[0].is_nan(), true);
-        assert_eq!(value.acceleration[1].is_nan(), true);
-        assert_eq!(value.acceleration[2].is_nan(), true);
+        assert!(value.acceleration[0].is_nan());
+        assert!(value.acceleration[1].is_nan());
+        assert!(value.acceleration[2].is_nan());
     }
 
     #[test]
     fn test_read_log_line_real_data() {
-        assert_eq!(
+        assert!(
             parse_log_line("670\t38076\t929\t27.19\t98709.02\t-0.007813\t-0.011719\t0.015625\t3\t3.136642\t-0.274198\t2.485954\t0\t0\tnan\tnan\t0.000000")
-                .is_ok(),
-            true
+                .is_ok()
         );
     }
 }

@@ -1,6 +1,8 @@
 
 use std::{fs, io::{BufRead, BufReader, Read}, sync::{atomic::AtomicBool, Arc, Mutex, MutexGuard}, thread, time::{Duration, Instant}};
 
+use log::info;
+
 use crate::{data::MissionData, tabs::{data::{data_tab, DataTabState}, map::{map_tab, MapTabState}, plot::{plot_tab, PlotTabState}}};
 
 pub struct TemplateApp {
@@ -67,16 +69,6 @@ struct StatusMessage {
 impl TemplateApp {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
-        // if let Some(storage) = cc.storage {
-        //     return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        // }
-
         Self {
             current_tab: Tab::Data,
 
@@ -98,7 +90,7 @@ fn spawn_data_reader_thread<T: Read + BufRead + Send + 'static>(mut reader: T, d
     let canceller = Arc::new(AtomicBool::new(false));
     let cloned_canceller = canceller.clone();
     thread::spawn(move || {
-        println!("Thread spawned");
+        info!("Data reader thread spawned");
         loop {
             let mut string = String::new();
             let _ = reader.read_line(&mut string);
@@ -106,7 +98,7 @@ fn spawn_data_reader_thread<T: Read + BufRead + Send + 'static>(mut reader: T, d
             let _ = data.lock().unwrap().parse_line(&string);
 
             if canceller.load(std::sync::atomic::Ordering::Relaxed) {
-                println!("Cancel order detected; ending thread.");
+                info!("Cancel order detected; ending thread.");
                 return;
             }
         }
@@ -115,10 +107,6 @@ fn spawn_data_reader_thread<T: Read + BufRead + Send + 'static>(mut reader: T, d
 }
 
 impl eframe::App for TemplateApp {
-    fn save(&mut self, _storage: &mut dyn eframe::Storage) {
-        // eframe::set_value(storage, eframe::APP_KEY, self);
-    }
-
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
         if self.auto_repaint {
