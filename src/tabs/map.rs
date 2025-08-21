@@ -1,7 +1,7 @@
 
 use directories::ProjectDirs;
-use egui::{color_picker::color_edit_button_rgba, CollapsingHeader, Color32, Context, DragValue, Frame, Layout, Rgba, RichText, Ui};
-use walkers::{extras::{LabeledSymbol, LabeledSymbolStyle, Places}, sources, HttpOptions, HttpTiles, Map, MapMemory, Position};
+use egui::{color_picker::color_edit_button_rgba, CollapsingHeader, Color32, Context, DragValue, Frame, Layout, Popup, Rgba, RichText, Ui};
+use walkers::{extras::{LabeledSymbol, LabeledSymbolStyle, Places}, sources, HttpOptions, HttpTiles, Map, MapMemory, Position, Projector};
 
 use crate::data::SensedData;
 use crate::util::map_trail::TrailPlugin;
@@ -13,16 +13,10 @@ pub struct MapTabState {
     osm_tiles: HttpTiles,
     geo_tiles: HttpTiles,
 
-    ground_station: GroundStationPosition,
+    ground_station: Position,
     
     trail_color: Rgba,
     trail_length: usize,
-}
-
-#[derive(Default)]
-struct GroundStationPosition {
-    latitude: f64,
-    longitude: f64,
 }
 
 impl MapTabState {
@@ -49,7 +43,7 @@ impl MapTabState {
                 },
                 egui_ctx.to_owned()
             ),
-            ground_station: GroundStationPosition::default(),
+            ground_station: Default::default(),
             trail_color: Color32::BLACK.into(),
             trail_length: 0
         }
@@ -106,7 +100,7 @@ pub fn map_tab(
                 ui.heading("Azimuth");
 
                 ui.label(RichText::new( if let Some(last) = data.last() {
-                    let azimuth = calculate_azimuth(&[state.ground_station.latitude, state.ground_station.longitude], &last.gps_position );
+                    let azimuth = calculate_azimuth(&[state.ground_station.x(), state.ground_station.y()], &last.gps_position);
                     format!("{:.2}", if azimuth < 0.0 {360.0 + azimuth} else {azimuth} )
                 }
                 else {
@@ -121,17 +115,16 @@ pub fn map_tab(
 
             ui.horizontal(|ui|{
                 ui.label("Lat: ");
-                ui.add(egui::DragValue::new(&mut state.ground_station.latitude).speed(0.1).range(-90.0..=90.0));
+                ui.add(egui::DragValue::new(&mut state.ground_station.x()).speed(0.1).range(-90.0..=90.0));
                 ui.label("Lon: ");
-                ui.add(egui::DragValue::new(&mut state.ground_station.longitude).speed(0.1).range(-180.0..=180.0));
+                ui.add(egui::DragValue::new(&mut state.ground_station.y()).speed(0.1).range(-180.0..=180.0));
             });
 
             ui.add_space(2.0);
 
             if ui.button("Set to probe position").clicked() {
-                let position = data.last().map_or([0.0, 0.0], |d| d.gps_position);
-                state.ground_station.latitude = position[0];
-                state.ground_station.longitude = position[1];
+                state.ground_station = data.last()
+                    .map_or(Position::default(), |d| d.gps_position.into())
             }
         });
     
@@ -164,7 +157,7 @@ pub fn map_tab(
             Map::new(
                 Some(if state.geo_view {&mut state.geo_tiles} else {&mut state.osm_tiles}),
                 &mut state.map_memory,
-                current_position.unwrap_or(Position::new(0.0, 0.0))
+                current_position.unwrap_or_default()
             )
             .with_plugin(
                 TrailPlugin {
@@ -190,10 +183,7 @@ pub fn map_tab(
                     points.push(labeled_symbol(position, "Latest position"));
                 }
 
-                points.push(labeled_symbol(
-                    Position::new(state.ground_station.latitude, state.ground_station.longitude),
-                    "Ground station"
-                ));
+                points.push(labeled_symbol(state.ground_station, "Ground station"));
 
                 Places::new(points)
             })
@@ -202,6 +192,28 @@ pub fn map_tab(
         if map_response.double_clicked() {
             state.map_memory.follow_my_position();
         }
+
+        let context_menu = Popup::context_menu(&map_response);
+        let context_anchor_rect = context_menu.get_anchor_rect();
+        let map_clip_rect = ui.clip_rect();
+        context_menu.show(|ui| {
+            if map_response.drag_started() {
+                ui.close();
+            }
+
+            // Calculate geographical coordinates from pointer position
+            let projector = Projector::new(map_clip_rect, &state.map_memory, current_position.unwrap_or_default());
+            let position = context_anchor_rect
+                .map(|anchor| projector.unproject(anchor.left_top().to_vec2()))
+                .unwrap_or_default();
+
+            if ui.button("Set as ground station position").clicked() {
+                state.ground_station = position;
+            }
+
+            ui.label(format!("({:.6}, {:.6})", position.x(), position.y()));
+        });
+
     });     
 }
 
